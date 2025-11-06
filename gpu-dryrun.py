@@ -18,18 +18,18 @@ def get_available_gpus():
     """Get available GPU information and filter based on memory status"""
     nvmlInit()
     available_gpus = []
-    
+
     try:
         for i in range(nvmlDeviceGetCount()):
             handle = nvmlDeviceGetHandleByIndex(i)
             info = nvmlDeviceGetMemoryInfo(handle)
             utilization = nvmlDeviceGetUtilizationRates(handle)
-            
+
             total_memory = info.total / (1024**3)  # Convert to GB
             free_memory = info.free / (1024**3)    # Available memory
             memory_usage = (total_memory - free_memory) / total_memory * 100  # Memory usage percentage
             gpu_utilization = utilization.gpu  # GPU utilization
-            
+
             # Only select GPUs with memory usage < 50% and GPU utilization < 30%
             if memory_usage < 70 and gpu_utilization < 30:
                 available_gpus.append({
@@ -41,7 +41,7 @@ def get_available_gpus():
                 })
     finally:
         nvmlShutdown()
-    
+
     # Sort by available memory in descending order
     available_gpus.sort(key=lambda x: x['free_memory'], reverse=True)
     return available_gpus
@@ -52,24 +52,24 @@ def calculate_model_size(gpu_memory):
     available_memory = gpu_memory * 0.8  # GB
     # Rough estimate: each parameter takes 4 bytes (float32)
     available_params = int((available_memory * 1024**3) / 4)
-    
+
     # Calculate layer dimensions (simple proportional allocation)
     in_dim = 8192  # Keep input dimension constant
     out_dim = 4096  # Keep output dimension constant
     # Adjust middle layer size based on available memory
     mid_dim = min(8192, int(available_params / (in_dim + out_dim)))
-    
+
     return in_dim, mid_dim, out_dim
 
-def train(rank, world_size):
+def train(rank, world_size, gpu_indices):
     setup(rank, world_size)
-    
+
     # Get current GPU memory information
     gpu_info = get_available_gpus()[rank]
     in_dim, mid_dim, out_dim = calculate_model_size(gpu_info['target_memory'])
-    
-    print(f"GPU {rank}: Using model dimensions - Input: {in_dim}, Hidden: {mid_dim}, Output: {out_dim}")
-    
+
+    print(f"GPU {gpu_indices[rank]}: Using model dimensions - Input: {in_dim}, Hidden: {mid_dim}, Output: {out_dim}")
+
     model = nn.Sequential(
         nn.Linear(in_dim, mid_dim),
         nn.ReLU(),
@@ -100,28 +100,33 @@ def train(rank, world_size):
 
 def main():
     available_gpus = get_available_gpus()
-    
+
     # If no suitable GPUs are available, exit the program
     if not available_gpus:
         print("No suitable GPUs found!")
         return
-    
+
     # Print available GPU information
     print(f"Found {len(available_gpus)} suitable GPUs:")
     for gpu in available_gpus:
         print(f"GPU {gpu['index']}: {gpu['total_memory']:.2f}GB total, "
               f"{gpu['free_memory']:.2f}GB free, "
               f"Utilization: {gpu['utilization']}%")
-    
+
     # Set the GPUs to use
-    gpu_indices = [gpu['index'] for gpu in available_gpus]
-    os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, gpu_indices))
-    
+    cuda_visible_devices = os.getenv("CUDA_VISIBLE_DEVICES", "")
+    if cuda_visible_devices:
+        gpu_indices = cuda_visible_devices.split(",")
+        gpu_indices = [int(idx) for idx in gpu_indices]
+    else:
+        gpu_indices = [gpu['index'] for gpu in available_gpus]
+        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, gpu_indices))
+
     world_size = len(gpu_indices)
     print(f"\nUsing {world_size} GPUs: {gpu_indices}")
-    
+
     # Start training
-    torch.multiprocessing.spawn(train, args=(world_size,), nprocs=world_size, join=True)
+    torch.multiprocessing.spawn(train, args=(world_size, gpu_indices), nprocs=world_size, join=True)
 
 if __name__ == '__main__':
     main()

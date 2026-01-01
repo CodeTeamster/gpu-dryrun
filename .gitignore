@@ -1,1 +1,4 @@
-*.log
+*
+!gpu-dryrun.py
+!run.sh
+!.gitignore

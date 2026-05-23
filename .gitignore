@@ -1,5 +1,1 @@
-*
-!gpu-dryrun.py
-!run.sh
-!.gitignore
-!README.md
+gpu-dryrun

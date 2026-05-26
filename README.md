@@ -12,9 +12,23 @@ NVML is loaded at runtime from the NVIDIA driver library, so `nvml.h` is not req
 
 ## Build
 
+System CUDA toolkit:
+
 ```sh
 make -f Makefile.cpp CXX=/path/to/nvcc
 ```
+
+Conda CUDA toolkit (recommended for mixed RTX A6000 + RTX 4xxx environments):
+
+```sh
+make -f Makefile.cpp \
+  CXX=$CONDA_PREFIX/bin/nvcc \
+  CXXFLAGS="-std=c++17 -O2 -I$CONDA_PREFIX/include -L$CONDA_PREFIX/lib \
+  -gencode arch=compute_86,code=sm_86 \
+  -gencode arch=compute_89,code=sm_89"
+```
+
+This builds native SASS for both Ampere (`sm_86`, e.g. RTX A6000) and Ada (`sm_89`, RTX 4xxx), avoiding PTX toolchain compatibility issues at runtime.
 
 Output binary:
 

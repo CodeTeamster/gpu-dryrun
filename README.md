@@ -10,6 +10,15 @@
 
 NVML is loaded at runtime from the NVIDIA driver library, so `nvml.h` is not required.
 
+## Conda Environment (Python 3.11)
+
+```sh
+conda create -n gpu-dryrun --override-channels -c nvidia -c conda-forge \
+  python=3.11 make cuda-nvcc=12.1.105 cuda-cudart=12.1.105 \
+  cuda-cudart-dev=12.1.105 cuda-cudart-static=12.1.105
+conda activate gpu-dryrun
+```
+
 ## Build
 
 System CUDA toolkit:
@@ -21,14 +30,10 @@ make -f Makefile.cpp CXX=/path/to/nvcc
 Conda CUDA toolkit (recommended for mixed RTX A6000 + RTX 4xxx environments):
 
 ```sh
-make -f Makefile.cpp \
-  CXX=$CONDA_PREFIX/bin/nvcc \
-  CXXFLAGS="-std=c++17 -O2 -I$CONDA_PREFIX/include -L$CONDA_PREFIX/lib \
-  -gencode arch=compute_86,code=sm_86 \
-  -gencode arch=compute_89,code=sm_89"
+make -f Makefile.cpp CXX=$CONDA_PREFIX/bin/nvcc
 ```
 
-This builds native SASS for both Ampere (`sm_86`, e.g. RTX A6000) and Ada (`sm_89`, RTX 4xxx), avoiding PTX toolchain compatibility issues at runtime.
+By default, `Makefile.cpp` builds native SASS for both Ampere (`sm_86`, e.g. RTX A6000) and Ada (`sm_89`, RTX 4xxx), and automatically adds `-I$CONDA_PREFIX/include -L$CONDA_PREFIX/lib` when `CONDA_PREFIX` is set.
 
 Output binary:
 
